@@ -43,7 +43,6 @@ struct Usuario {
 struct Producto {
 	int IDUsuario;
 	int IDProducto;
-	int GLOBAL_IDPRODUCTO = 1;
 	string nombreProducto;
 	string cantidadProducto;
 	string codigoProducto;
@@ -67,7 +66,7 @@ void guardarUsuario(Usuario*);
 void cargarUsuario();
 void guardarProductoID();
 void cargarProductoID();
-void guardarProducto(Producto*);
+void guardarProducto();
 void cargarProducto();
 string getText(int, HWND);
 
@@ -140,6 +139,7 @@ BOOL CALLBACK iniciodesesion(HWND handler, UINT mensaje, WPARAM wparam, LPARAM l
 				if (found == true) {
 					iniciarsesion = aUsuario;
 					aUsuario = oUsuario;
+					cargarProducto();
 					HWND hMisEnvios = CreateDialog(handlerglobal, MAKEINTRESOURCE(IDD_MISENVIOS), NULL, misenvios);
 					ShowWindow(hMisEnvios, SW_SHOW);
 					DestroyWindow(handler);
@@ -359,7 +359,7 @@ BOOL CALLBACK comprarproductos(HWND handler, UINT mensaje, WPARAM wparam, LPARAM
 BOOL CALLBACK misproductos(HWND handler, UINT mensaje, WPARAM wparam, LPARAM lparam) {
 	switch (mensaje) {
 	case WM_INITDIALOG: {
-		cargarProducto();
+		//cargarProducto();
 		hLBProducto = GetDlgItem(handler, IDC_LISTMISPRODUCTOS);
 		hLBProductoSeleccionado = GetDlgItem(handler, IDC_EDITNOMBREMISPRODUCTOS);
 		hLBProductoSeleccionado1 = GetDlgItem(handler, IDC_EDITCANTIDADMISPRODUCTOS);
@@ -368,13 +368,13 @@ BOOL CALLBACK misproductos(HWND handler, UINT mensaje, WPARAM wparam, LPARAM lpa
 		hLBProductoSeleccionado4 = GetDlgItem(handler, IDC_EDITDESCRIPCIONMISPRODUCTOS);
 		hLBProductoSeleccionado5 = GetDlgItem(handler, IDC_EDITMONTOMISPRODUCTOS);
 		int index = 0;
+		aProducto = oProducto;
 		while (aProducto != NULL) {
 			SendMessage(hLBProducto, LB_ADDSTRING, NULL, (LPARAM)aProducto->nombreProducto.c_str()); //GUARDAMOS EN EL LISTBOX LOS NOMBRES DE LOS PRODUCTOS CREADOS
 			SendMessage(hLBProducto, LB_SETITEMDATA, (WPARAM)index, (LPARAM)aProducto->IDProducto);
 			aProducto = aProducto->siguiente;
 			index++;
 		}
-		aProducto = oProducto;
 	}
 	break;
 
@@ -514,6 +514,7 @@ BOOL CALLBACK nuevoproducto(HWND handler, UINT mensaje, WPARAM wparam, LPARAM lp
 			}
 			if (oProducto != NULL) { //YA EXISTE POR LO MENOS 1 PRODUCTO
 				bool found = true;
+				aProducto = oProducto;
 				while (aProducto->nombreProducto.compare(nombreProducto) != 0) {
 					if (aProducto->siguiente == NULL) {
 						found = false;
@@ -521,45 +522,38 @@ BOOL CALLBACK nuevoproducto(HWND handler, UINT mensaje, WPARAM wparam, LPARAM lp
 					}
 					aProducto = aProducto->siguiente;
 				}
-				aProducto = oProducto;
 				if (found) {
 					MessageBox(NULL, "Producto existente", "ERROR", MB_ICONERROR);
 					break;
 				}
 			}
+			Producto* nuevoproducto = new Producto;
+			nuevoproducto->nombreProducto.append(nombreProducto);
+			nuevoproducto->cantidadProducto.append(cantidadProducto);
+			nuevoproducto->codigoProducto.append(codigoProducto);
+			nuevoproducto->marcaProducto.append(marcaProducto);
+			nuevoproducto->descripcionProducto.append(descripcionProducto);
+			nuevoproducto->montoProducto.append(montoProducto);
+			nuevoproducto->IDProducto = GLOBAL_IDPRODUCTO++;
+			nuevoproducto->previo = NULL;
+			nuevoproducto->siguiente = NULL;
 
 			if (oProducto == NULL) { //PRIMERA VEZ QUE SE REGISTRA UN PRODUCTO
-				oProducto = new Producto;
-				oProducto->nombreProducto.append(nombreProducto);
-				oProducto->cantidadProducto.append(cantidadProducto);
-				oProducto->codigoProducto.append(codigoProducto);
-				oProducto->marcaProducto.append(marcaProducto);
-				oProducto->descripcionProducto.append(descripcionProducto);
-				oProducto->montoProducto.append(montoProducto);
-				oProducto->IDProducto = GLOBAL_IDPRODUCTO++;
-				oProducto->previo = NULL;
-				oProducto->siguiente = NULL;
+				oProducto = nuevoproducto;
+				
 			}
 			else { //MAS DE 1 PRODUCTO
+				aProducto = oProducto;
 				while (aProducto->siguiente != NULL) {
 					aProducto = aProducto->siguiente;
-					aProducto->siguiente = new Producto;
-					aProducto->siguiente->previo = aProducto;
-					aProducto = aProducto->siguiente;
-					aProducto->siguiente = NULL;
-					aProducto->IDProducto = GLOBAL_IDPRODUCTO++;
-					aProducto->nombreProducto.append(nombreProducto);
-					aProducto->cantidadProducto.append(cantidadProducto);
-					aProducto->codigoProducto.append(codigoProducto);
-					aProducto->marcaProducto.append(marcaProducto);
-					aProducto->descripcionProducto.append(descripcionProducto);
-					aProducto->montoProducto.append(montoProducto);
 				}
+					aProducto-> siguiente = nuevoproducto;
+					aProducto->siguiente->previo = aProducto;
 			}
-			guardarProducto(oProducto);
+			guardarProducto();
 			guardarProductoID();
-			freeMemory();
-			aProducto = oProducto;
+			//freeMemory();
+			//aProducto = oProducto;
 			break;
 		}
 		case ID_INFORMACIONDELVENDEDOR: {
@@ -855,7 +849,8 @@ void cargarProductoID() {
 	}
 }
 
-void guardarProducto(Producto* origen) {
+void guardarProducto() {
+	Producto* origen = oProducto;
 	archivo.open("Productos.bin", ios::binary | ios::out | ios::trunc);
 	if (archivo.is_open()) {
 		while (origen != NULL) {
@@ -881,47 +876,24 @@ void cargarProducto() {
 			return;
 		}
 		for (int i = 0; i < totalChar / sizeof(Producto); i++) {
+			Producto* temp = new Producto;
+			archivo.seekg(i * sizeof(Producto));
+			archivo.read(reinterpret_cast<char*>(temp), sizeof(Producto));
+			temp->previo = NULL;
+			temp->siguiente = NULL;
+			
 			if (oProducto == NULL) {
-				Producto* temp = new Producto;
-				oProducto = new Producto;
-				archivo.seekg(i * sizeof(Producto));
-				archivo.read(reinterpret_cast<char*>(temp), sizeof(Producto));
-				oProducto = new Producto;
-				oProducto->nombreProducto.append(temp->nombreProducto);
-				oProducto->cantidadProducto.append(temp->cantidadProducto);
-				oProducto->codigoProducto.append(temp->codigoProducto);
-				oProducto->marcaProducto.append(temp->marcaProducto);
-				oProducto->descripcionProducto.append(temp->descripcionProducto);
-				oProducto->montoProducto.append(temp->montoProducto);
-				oProducto->IDProducto = temp->IDProducto;
-				oProducto->previo = NULL;
-				oProducto->siguiente = NULL;
-				aProducto = oProducto;
-				delete reinterpret_cast<char*>(temp);
-				continue;
+				oProducto = temp;
 			}
 			else {
+				aProducto = oProducto;
 				while (aProducto->siguiente != NULL) {
 					aProducto = aProducto->siguiente;
-					Producto* temp = new Producto;
-					aProducto->siguiente = new Producto;
-					archivo.seekg(i * sizeof(Producto));
-					archivo.read(reinterpret_cast<char*>(temp), sizeof(Producto));
-					aProducto->siguiente->previo = aProducto;
-					aProducto = aProducto->siguiente;
-					aProducto->siguiente = NULL;
-					aProducto->nombreProducto.append(temp->nombreProducto);
-					aProducto->cantidadProducto.append(temp->cantidadProducto);
-					aProducto->codigoProducto.append(temp->codigoProducto);
-					aProducto->marcaProducto.append(temp->marcaProducto);
-					aProducto->descripcionProducto.append(temp->descripcionProducto);
-					aProducto->montoProducto.append(temp->montoProducto);
-					aProducto->IDProducto = temp->IDProducto;
-					aProducto = oProducto;
-					delete reinterpret_cast<char*>(temp);
-					continue;
 				}
+				aProducto->siguiente = temp;
+				aProducto->siguiente->previo = aProducto;
 			}
+			delete reinterpret_cast<char*>(temp);
 		}
 		MessageBox(NULL, "Carga de Productos exitoso", "EXITO", MB_ICONINFORMATION);
 		archivo.close();
