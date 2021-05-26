@@ -20,6 +20,7 @@ HWND hLBProductoSeleccionado5;
 
 fstream archivo;
 bool exitiniciarsesion = false;
+bool imagenVendedor = false;
 bool imagen1cargadaProducto = false;
 bool imagen2cargadaProducto = false;
 
@@ -31,14 +32,14 @@ struct Usuario {
 	Usuario* siguiente;
 } *oUsuario, *aUsuario, *iniciarsesion;
 
-/*struct InformacionVendedor {
+struct InformacionVendedor {
 	int IDUsuario;
 	int IDVendedor;
 	string nombreVendedor;
 	string atlasVendedor;
 	InformacionVendedor* previo;
 	InformacionVendedor* siguiente;
-} *oInformacionVendedor, *aInformacionVendedor;*/
+} *oInformacionVendedor, *aInformacionVendedor;
 
 struct Producto {
 	int IDUsuario;
@@ -51,13 +52,38 @@ struct Producto {
 	string montoProducto;
 	Producto* previo;
 	Producto* siguiente;
-} *oProducto, *aProducto;
+} *oProducto, *aProducto, *buscarProducto;
 
-/*struct Envio {
+struct Envio {
+	SYSTEMTIME fecha;
 	int IDUsuario;
 	int IDProducto;
 	int IDEnvio;
-};*/
+};
+
+unsigned long long convertiraDias(SYSTEMTIME fecha) {
+	FILETIME filetime;
+	//SACAR CUANTO TIEMPO EN UNIDADES DE 100 NANOSEGUNDOS HAN PASADO
+	//1 DE ENERO DE 1601 A FECHA PROPORCIONADA
+	SystemTimeToFileTime(&fecha, &filetime);
+	unsigned long long fechaCompleta = filetime.dwHighDateTime;
+	fechaCompleta = fechaCompleta << 32;
+	fechaCompleta += filetime.dwLowDateTime;
+	fechaCompleta = fechaCompleta / 10000000;
+	fechaCompleta = fechaCompleta / 86400; //CANTIDAD DE DIAS QUE HAN PASADO
+	return fechaCompleta;
+}
+
+int diferenciaDeDias(SYSTEMTIME fecha1, SYSTEMTIME fecha2) {
+	return convertiraDias(fecha1) - convertiraDias(fecha2);
+}
+
+wstring systemTimeAWstring(SYSTEMTIME fecha) {
+	SYSTEMTIME actual;
+	GetLocalTime(&actual);
+	int diferenciaDias = diferenciaDeDias(actual, fecha);
+	return to_wstring(fecha.wYear) + L"/" + to_wstring(fecha.wMonth) + L"/" + to_wstring(fecha.wDay) + L" (Hace" + to_wstring(diferenciaDias) + L"días)";
+}
 
 void freeMemory();
 void guardarUsuarioID();
@@ -271,9 +297,17 @@ BOOL CALLBACK informaciondelvendedor(HWND handler, UINT mensaje, WPARAM wparam, 
 				HWND hPictureControl = GetDlgItem(handler, IDC_STATICFOTO1INFORMACIONDELVENDEDOR);
 				HBITMAP hbitmap = (HBITMAP)LoadImage(NULL, direccion, IMAGE_BITMAP, 100, 100, LR_LOADFROMFILE);
 				SendMessage(hPictureControl, STM_SETIMAGE, IMAGE_BITMAP, (LPARAM)hbitmap);
+				imagenVendedor = true;
 			}
 			break;
 		}
+		/*string nombreVendedor = getText(IDC_EDITNOMBREINFORMACIONDELVENDEDOR, handler);
+		string atlasVendedor = getText(IDC_EDITATLASINFORMACIONDELVENDEDOR, handler);
+		
+		if (nombreVendedor.compare("") == 0 || atlasVendedor.compare("") == 0 || imagenVendedor == 0) {
+			MessageBox(NULL, "Campo vacío", "ERROR", MB_ICONERROR);
+			break;
+		}*/
 		}
 		break;
 	}
@@ -289,6 +323,32 @@ BOOL CALLBACK informaciondelvendedor(HWND handler, UINT mensaje, WPARAM wparam, 
 BOOL CALLBACK eliminarproducto(HWND handler, UINT mensaje, WPARAM wparam, LPARAM lparam) {
 	switch (mensaje) {
 	case WM_COMMAND: {
+		switch (LOWORD(wparam)) {
+		case IDC_BUTTONELIMINARELIMINARPRODUCTO: {
+			if (aProducto->previo == NULL && aProducto->siguiente == NULL) {
+				delete aProducto;
+				aProducto = oProducto = NULL;
+			}
+			else if (aProducto->previo == NULL) {
+				oProducto = oProducto->siguiente;
+				oProducto->previo = NULL;
+				delete aProducto;
+				aProducto = oProducto;
+			}
+			else if (aProducto->siguiente == NULL) {
+				aProducto->previo->siguiente = NULL;
+				delete aProducto;
+				aProducto = oProducto;
+			}
+			else {
+				aProducto->previo->siguiente = aProducto->siguiente;
+				aProducto->siguiente->previo = aProducto->previo;
+				delete aProducto;
+				aProducto = oProducto;
+			}
+			break;
+		}
+		}
 		break;
 	}
 	case WM_CLOSE: {
@@ -298,11 +358,21 @@ BOOL CALLBACK eliminarproducto(HWND handler, UINT mensaje, WPARAM wparam, LPARAM
 		break;
 	}
 	return false;
-}
+} 
 
 BOOL CALLBACK editarproducto(HWND handler, UINT mensaje, WPARAM wparam, LPARAM lparam) {
 	switch (mensaje) {
 	case WM_COMMAND: {
+		switch (LOWORD(wparam)) {
+		case IDC_BUTTONMODIFICAREDITARPRODUCTO: {
+
+			break;
+		}
+		case IDC_BUTTONGUARDAREDITARPRODUCTO: {
+
+			break;
+		}
+		}
 		break;
 	}
 	case WM_CLOSE: {
@@ -345,6 +415,13 @@ BOOL CALLBACK cancelarenvio(HWND handler, UINT mensaje, WPARAM wparam, LPARAM lp
 BOOL CALLBACK comprarproductos(HWND handler, UINT mensaje, WPARAM wparam, LPARAM lparam) {
 	switch (mensaje) {
 	case WM_COMMAND: {
+		switch (LOWORD(wparam)) {
+		case IDC_BUTTONCOMPRARCOMPRARPRODUCTOS: {
+			Envio *nuevo = new Envio;
+			SendDlgItemMessage(handler, IDC_DATETIMEPICKERFECHACOMPRARPRODUCTOS, DTM_GETSYSTEMTIME, NULL, (LPARAM)&(nuevo->fecha));
+			break;
+		}
+		}
 		break;
 	}
 	case WM_CLOSE: {
@@ -424,7 +501,39 @@ BOOL CALLBACK editarproductobuscador(HWND handler, UINT mensaje, WPARAM wparam, 
 	case WM_COMMAND: {
 		switch (LOWORD(wparam)) {
 		case IDC_BUTTONBUSCAREDITARPRODUCTOBUSCADOR: {
-			DialogBox(handlerglobal, MAKEINTRESOURCE(IDD_EDITARPRODUCTO), NULL, (DLGPROC)editarproducto);
+			string nombreProducto = getText(IDC_EDITBUSCAREDITARPRODUCTOBUSCADOR, handler);
+			if (nombreProducto.compare("") == 0) {
+				MessageBox(NULL, "Campo vacío", "ERROR", MB_ICONERROR);
+				break;
+			}
+			if (oProducto != NULL) {
+				bool found = true;
+				while (aProducto != NULL) {
+					if (aProducto->nombreProducto.compare(nombreProducto) == 0)
+						break;
+					if (aProducto->siguiente == NULL) {
+						found = false;
+						break;
+					}
+					aProducto = aProducto->siguiente;
+				}
+				if (found == true) {
+					buscarProducto = aProducto;
+					aProducto = oProducto;
+					HWND hEditarProducto = CreateDialog(handlerglobal, MAKEINTRESOURCE(IDD_EDITARPRODUCTO), NULL, editarproducto);
+					ShowWindow(hEditarProducto, SW_SHOW);
+					DestroyWindow(handler);
+				}
+				else {
+					aProducto = oProducto;
+					MessageBox(NULL, "El nombre de producto no coincide", "ERROR", MB_ICONERROR);
+					break;
+				}
+			}
+			else {
+				MessageBox(NULL, "No hay productos registrados", "ERROR", MB_ICONERROR);
+				break;
+			}
 			break;
 		}
 		}
@@ -436,14 +545,46 @@ BOOL CALLBACK editarproductobuscador(HWND handler, UINT mensaje, WPARAM wparam, 
 		break;
 	}
 	return false;
-}
+} //
 
-BOOL CALLBACK eliminarproductobuscador(HWND handler, UINT mensaje, WPARAM wparam, LPARAM lparam) {
+BOOL CALLBACK eliminarproductobuscador(HWND handler, UINT mensaje, WPARAM wparam, LPARAM lparam) { 
 	switch (mensaje) {
 	case WM_COMMAND: {
 		switch (LOWORD(wparam)) {
 		case IDC_BUTTONBUSCARELIMINARPRODUCTOBUSCADOR: {
-			DialogBox(handlerglobal, MAKEINTRESOURCE(IDD_ELIMINARPRODUCTO), NULL, (DLGPROC)eliminarproducto);
+			string nombreProducto = getText(IDC_EDITBUSCARELIMINARPRODUCTOBUSCADOR, handler);
+			if (nombreProducto.compare("") == 0) {
+				MessageBox(NULL, "Campo vacío", "ERROR", MB_ICONERROR);
+				break;
+			}
+			if (oProducto != NULL) {
+				bool found = true;
+				while (aProducto != NULL) {
+					if (aProducto->nombreProducto.compare(nombreProducto) == 0)
+						break;
+					if (aProducto->siguiente == NULL) {
+						found = false;
+						break;
+					}
+					aProducto = aProducto->siguiente;
+				}
+				if (found == true) {
+					buscarProducto = aProducto;
+					aProducto = oProducto;
+					HWND hEliminarProducto = CreateDialog(handlerglobal, MAKEINTRESOURCE(IDD_ELIMINARPRODUCTO), NULL, eliminarproducto);
+					ShowWindow(hEliminarProducto, SW_SHOW);
+					DestroyWindow(handler);
+				}
+				else {
+					aProducto = oProducto;
+					MessageBox(NULL, "El nombre de producto no coincide", "ERROR", MB_ICONERROR);
+					break;
+				}
+			}
+			else {
+				MessageBox(NULL, "No hay productos registrados", "ERROR", MB_ICONERROR);
+				break;
+			}
 			break;
 		}
 		}
@@ -455,7 +596,7 @@ BOOL CALLBACK eliminarproductobuscador(HWND handler, UINT mensaje, WPARAM wparam
 		break;
 	}
 	return false;
-}
+} //
 
 BOOL CALLBACK nuevoproducto(HWND handler, UINT mensaje, WPARAM wparam, LPARAM lparam) {
 	switch (mensaje) {
